@@ -1,16 +1,43 @@
 name: Android Debug APK
 on: [push, workflow_dispatch]
+
 jobs:
- build:
-  runs-on: ubuntu-latest
-  steps:
-   - uses: actions/checkout@v4
-   - uses: actions/setup-java@v4
-     with: {distribution: temurin, java-version: '17'}
-   - uses: android-actions/setup-android@v3
-   - run: echo y | sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
-   - uses: gradle/actions/setup-gradle@v4
-     with: {gradle-version: '8.9'}
-   - run: gradle assembleDebug
-   - uses: actions/upload-artifact@v4
-     with: {name: HOLYDON-CUT-debug-apk, path: app/build/outputs/apk/debug/*.apk}
+  build:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # Use the Android SDK already installed on GitHub's Ubuntu runner.
+      # Avoid the setup-android action that failed in the previous run.
+      - name: Verify Android SDK tools
+        run: |
+          echo "SDK root: $ANDROID_HOME"
+          ls "$ANDROID_HOME"
+          command -v sdkmanager || find "$ANDROID_HOME" -name sdkmanager -type f | head -1
+
+      - name: Install Android 35 packages and accept licenses
+        run: |
+          SDKMANAGER="$(command -v sdkmanager || find "$ANDROID_HOME" -name sdkmanager -type f | head -1)"
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses
+          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" 'platforms;android-35' 'build-tools;35.0.0'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        run: gradle assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HOLYDON-CUT-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
